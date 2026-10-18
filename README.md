@@ -1,9 +1,19 @@
-# Causal Uplift & Retention Engine (X-Learner & Doubly Robust CATE)
+<p align="center">
+  <img src="assets/logo.svg" alt="Causal Uplift Engine Logo" width="130" height="130">
+</p>
 
-[![CI](https://github.com/Rangga11268/causal-uplift-retention-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/Rangga11268/causal-uplift-retention-engine/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code Style: Clean](https://img.shields.io/badge/architecture-zero--docker%20%7C%20cross--platform-emerald.svg)]()
+<h1 align="center">Causal Uplift & Retention Engine</h1>
+<p align="center">
+  <strong>X-Learner & Doubly Robust CATE for Optimal Retention Intervention</strong><br>
+  <em>Meta-learners estimating individual treatment effects and solving constrained Knapsack budget allocation.</em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Rangga11268/causal-uplift-retention-engine/actions/workflows/ci.yml"><img src="https://github.com/Rangga11268/causal-uplift-retention-engine/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue.svg" alt="Python Version"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="#"><img src="https://img.shields.io/badge/architecture-zero--docker%20%7C%20cross--platform-emerald.svg" alt="Architecture"></a>
+</p>
 
 Production-grade Causal Inference and Uplift Modeling engine designed to eliminate marketing budget waste in customer retention and promotion allocation. Rather than predicting raw churn probability $P(Y=1 \mid X)$, this engine estimates the **Conditional Average Treatment Effect (CATE)** using state-of-the-art meta-learners (X-Learner, Doubly Robust Learner) and solves the optimal intervention policy via Constrained Knapsack Optimization under fixed daily marketing budgets.
 

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="causalBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#110d1f" />
+      <stop offset="50%" stop-color="#18132b" />
+      <stop offset="100%" stop-color="#090611" />
+    </linearGradient>
+
+    <!-- Qini Curve Gain Gradient -->
+    <linearGradient id="qiniGain" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#8b5cf6" />
+      <stop offset="50%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+
+    <!-- Treatment vs Control Divergence Area -->
+    <linearGradient id="upliftArea" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0.02" />
+    </linearGradient>
+  </defs>
+
+  <!-- Frame Background -->
+  <rect width="512" height="512" rx="96" fill="url(#causalBg)" stroke="#2e234d" stroke-width="4" />
+
+  <!-- Coordinate Grid Lines -->
+  <g stroke="#261c40" stroke-width="1.5" stroke-dasharray="4 6" opacity="0.6">
+    <line x1="84" y1="416" x2="428" y2="416" />
+    <line x1="84" y1="96" x2="84" y2="416" />
+    <line x1="84" y1="256" x2="428" y2="256" />
+    <line x1="256" y1="96" x2="256" y2="416" />
+  </g>
+
+  <!-- Random Baseline Diagonal (Null Hypothesis Delta = 0) -->
+  <line x1="84" y1="416" x2="428" y2="136" stroke="#64748b" stroke-width="2.5" stroke-dasharray="6 6" />
+
+  <!-- Uplift Gain Shaded Polygon Area (AUUC Area Under Uplift Curve) -->
+  <path d="M 84 416 Q 160 160, 260 150 Q 350 145, 428 136 L 428 136 Z" 
+        fill="url(#upliftArea)" />
+
+  <!-- Empirical Cumulative Qini Uplift Curve (CATE Gain) -->
+  <path d="M 84 416 Q 160 160, 260 150 Q 350 145, 428 136" 
+        fill="none" stroke="url(#qiniGain)" stroke-width="5" stroke-linecap="round" />
+
+  <!-- Persuadables Peak Delta Node (Maximum ROI Cutoff) -->
+  <circle cx="210" cy="184" r="9" fill="#10b981" />
+  <circle cx="210" cy="184" r="16" fill="none" stroke="#10b981" stroke-width="2" opacity="0.6" />
+  <line x1="210" y1="184" x2="210" y2="416" stroke="#10b981" stroke-width="2" stroke-dasharray="4 4" opacity="0.7" />
+
+  <!-- Treatment (T=1) vs Control (T=0) Pearl Causality Vector Node -->
+  <circle cx="340" cy="270" r="14" fill="#1f1838" stroke="#a855f7" stroke-width="3" />
+  <path d="M 334 270 L 340 264 L 346 276" fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round" />
+
+  <!-- Sleeping Dogs / Do Not Disturb Quadrant Marker -->
+  <circle cx="380" cy="380" r="10" fill="#ef4444" stroke="#090611" stroke-width="2" opacity="0.8" />
+  <line x1="375" y1="380" x2="385" y2="380" stroke="#f8fafc" stroke-width="2" stroke-linecap="round" />
+</svg>
