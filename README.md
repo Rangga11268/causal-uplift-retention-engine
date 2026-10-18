@@ -96,10 +96,16 @@ Evaluated on Python 3.12 (CPU, 10,000 customer observational retention populatio
 | **Qini Score (AUUC Gain)** | $> +10.0$ over Random | **+18.68** (AUUC 137.70 vs 119.02) | `demo.py` on held-out test set |
 | **Top Decile Uplift (D1)** | $\ge +25.0\%$ | **+42.0%** incremental lift | Decile uplift table |
 | **Sleeping Dogs Filtered** | Negative responders excluded | **100% Excluded** from targeting | `app/core/optimizer.py` |
-| **Net ROI vs Naïve Churn** | $\ge +25.0\%$ Relative Gain | **+240.9% Net ROI** (vs +3.4% Naïve) | Knapsack allocation under $4,000 budget |
+| **Net ROI vs Naïve Churn** | $\ge +25.0\%$ Relative Gain | **+240.9% Net ROI** (vs +3.4% Naïve) | Simulated Knapsack allocation under $4,000 budget |
 | **10k Users Knapsack Speed** | $< 50.0\text{ ms}$ | **8.60 ms** | `benchmarks/benchmark_uplift.py` |
 | **Scoring Latency** | $< 50.0\text{ \mu s}$ / customer | **13.28 \mu s / customer** (66.4 ms / 5k) | Batch inference benchmark |
 | **Automated Test Suite** | 100% Pass Rate | **13 / 13 Passed (100%)** | `pytest tests/` |
+
+> [!NOTE]
+> **Experimental Context & Simulation Assumptions:**
+> * **Simulation Scope:** The $+240.9\%$ Net ROI metric reflects a controlled counterfactual simulation on a 10,000-customer synthetic retention population where the Data Generating Process (DGP) contains known ground-truth treatment effects across 4 customer archetypes (Persuadables, Sure Things, Lost Causes, and Sleeping Dogs).
+> * **Knapsack Economic Parameters:** The optimization assumes a fixed campaign budget $B = \$4,000$, intervention cost $c = \$15$ per user contacted, and retained customer lifetime value $V = \$100$. The causal policy sorts by density $\frac{\hat{\tau}(x) \cdot V}{c}$ and strictly filters Sleeping Dogs ($\hat{\tau}(x) \le 0$), whereas the naive churn baseline targets customers based solely on high churn probability without considering treatment sensitivity.
+> * **Production Deployment:** In live production environments without unobserved confounding, treatment effects must be estimated from historical randomized A/B experiments or observational data satisfying unconfoundedness ($Y(1), Y(0) \perp T \mid X$) with sufficient overlap.
 
 ---
 
