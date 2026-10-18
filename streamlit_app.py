@@ -95,8 +95,8 @@ st.markdown(
 
 @st.cache_resource
 def load_causal_models():
-    """Train causal meta-learners and generate synthetic customer pool."""
-    n_samples = 4000
+    """Train causal meta-learners and generate synthetic customer pool (lightweight footprint)."""
+    n_samples = 1500
     X, T, Y, tau_true, prop_true = generate_customer_retention_data(n_samples=n_samples, random_state=42)
 
     split_idx = int(n_samples * 0.7)
