@@ -90,8 +90,15 @@ class GreedyKnapsackOptimizer:
         if len(costs) != N:
             raise ValueError(f"Length mismatch: cate_estimates ({N}) vs voucher_costs ({len(costs)})")
 
+        if np.isnan(tau).any() or np.isnan(values).any() or np.isnan(costs).any():
+            raise ValueError("Inputs to optimize must not contain NaN")
+        if np.isinf(tau).any() or np.isinf(values).any() or np.isinf(costs).any():
+            raise ValueError("Inputs to optimize must not contain Inf")
+
         raw_b = budget if budget is not None else self.config.default_daily_budget
         B = float(raw_b)
+        if np.isnan(B) or np.isinf(B):
+            raise ValueError(f"Budget must be a finite number, got {raw_b}")
         if B <= 0:
             # Zero or negative budget: cannot target anyone
             return AllocationResult(
@@ -188,9 +195,13 @@ class GreedyKnapsackOptimizer:
         Used as an empirical benchmark to compare greedy heuristic optimality.
         """
         N = len(cate_estimates)
+        if N > 30:
+            raise ValueError(f"solve_exact_01_knapsack is limited to N <= 30 to prevent combinatorial explosion (got N={N})")
+        B_val = float(budget)
+        if np.isnan(B_val) or np.isinf(B_val) or B_val < 0:
+            raise ValueError(f"Budget must be non-negative and finite, got {budget}")
         gains = [float(cate_estimates[i] * customer_values[i]) for i in range(N)]
         c_list = [float(voucher_costs[i]) for i in range(N)]
-        B_val = float(budget)
 
         best_gain = 0.0
         best_selected: List[int] = []

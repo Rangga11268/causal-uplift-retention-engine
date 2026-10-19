@@ -180,14 +180,32 @@ class DoublyRobustLearner(BaseMetaLearner):
         y_arr = np.asarray(y)
         N = len(y_arr)
 
+        n_treated = int(np.sum(T_arr == 1))
+        n_control = int(np.sum(T_arr == 0))
+        n_folds = self.config.n_cross_fit_folds
+
+        if n_treated < n_folds or n_control < n_folds:
+            raise ValueError(
+                f"Insufficient sample coverage for {n_folds}-fold cross-fitting: "
+                f"treated={n_treated}, control={n_control}. Each group must have at least {n_folds} observations."
+            )
+
         # Cross-fitting to prevent overfitting bias on nuisance estimates
-        kf = KFold(n_splits=self.config.n_cross_fit_folds, shuffle=True, random_state=self.config.random_state)
+        kf = KFold(n_splits=n_folds, shuffle=True, random_state=self.config.random_state)
 
         pseudo_outcomes = np.zeros(N, dtype=np.float64)
 
-        for train_idx, val_idx in kf.split(X_mat):
+        for fold_i, (train_idx, val_idx) in enumerate(kf.split(X_mat)):
             X_tr, y_tr, T_tr = X_mat[train_idx], y_arr[train_idx], T_arr[train_idx]
             X_val, y_val, T_val = X_mat[val_idx], y_arr[val_idx], T_arr[val_idx]
+
+            n_tr_treated = np.sum(T_tr == 1)
+            n_tr_control = np.sum(T_tr == 0)
+            if n_tr_treated < 2 or n_tr_control < 2:
+                raise ValueError(
+                    f"Fold {fold_i} lacks sufficient treatment coverage: "
+                    f"treated={n_tr_treated}, control={n_tr_control}. Both groups must have >= 2 samples."
+                )
 
             # 1. Fit nuisance response models on fold train
             m0 = _create_regressor(self.config)

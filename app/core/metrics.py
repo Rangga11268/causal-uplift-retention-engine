@@ -47,6 +47,19 @@ def compute_qini_curve(
     cate = np.asarray(cate_pred, dtype=np.float64)
     N = len(y)
 
+    if N < 2:
+        raise ValueError(f"At least 2 samples required to compute Qini curve, got {N}")
+    if len(t) != N or len(cate) != N:
+        raise ValueError(f"Dimension mismatch: y ({N}), t ({len(t)}), cate ({len(cate)})")
+    if np.isnan(y).any() or np.isnan(t).any() or np.isnan(cate).any():
+        raise ValueError("Inputs to compute_qini_curve must not contain NaN")
+    if np.isinf(y).any() or np.isinf(t).any() or np.isinf(cate).any():
+        raise ValueError("Inputs to compute_qini_curve must not contain Inf")
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be >= 1, got {n_bins}")
+    if not np.all(np.isin(np.unique(t), [0, 1])):
+        raise ValueError("Treatment indicators t must be binary (0 or 1)")
+
     # Sort descending by predicted CATE (best persuadables targeted first)
     order = np.argsort(-cate)
     y_sorted = y[order]
@@ -104,10 +117,22 @@ def compute_uplift_by_decile(
     Validates that Top Deciles exhibit significant positive conversion uplift
     while Bottom Deciles contain neutral or negative responders (Sleeping Dogs).
     """
+    y_arr = np.asarray(y_true, dtype=np.float64)
+    t_arr = np.asarray(t_true, dtype=np.int32)
+    c_arr = np.asarray(cate_pred, dtype=np.float64)
+    N = len(y_arr)
+
+    if N < n_deciles:
+        raise ValueError(f"Sample count ({N}) must be >= n_deciles ({n_deciles})")
+    if len(t_arr) != N or len(c_arr) != N:
+        raise ValueError(f"Dimension mismatch in uplift by decile: y ({N}), t ({len(t_arr)}), cate ({len(c_arr)})")
+    if n_deciles < 1:
+        raise ValueError(f"n_deciles must be >= 1, got {n_deciles}")
+
     df = pd.DataFrame({
-        "y": y_true,
-        "t": t_true,
-        "cate": cate_pred,
+        "y": y_arr,
+        "t": t_arr,
+        "cate": c_arr,
     })
 
     # Decile assignment (1 = highest predicted uplift, 10 = lowest)

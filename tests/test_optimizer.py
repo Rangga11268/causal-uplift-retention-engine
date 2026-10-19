@@ -71,3 +71,16 @@ def test_optimizer_input_validation():
 
     with pytest.raises(ValueError, match="Length mismatch"):
         optimizer.optimize(np.array([0.1, 0.2]), voucher_costs=np.array([10.0, 10.0, 10.0]))
+
+    with pytest.raises(ValueError, match="Budget must be a finite number"):
+        optimizer.optimize(np.array([0.1, 0.2]), budget=float("nan"))
+
+    with pytest.raises(ValueError, match="Budget must be a finite number"):
+        optimizer.optimize(np.array([0.1, 0.2]), budget=float("inf"))
+
+    with pytest.raises(ValueError, match="must not contain NaN"):
+        optimizer.optimize(np.array([0.1, np.nan]))
+
+    with pytest.raises(ValueError, match="limited to N <= 30"):
+        optimizer.solve_exact_01_knapsack(np.ones(35), np.ones(35), np.ones(35), budget=50.0)
+

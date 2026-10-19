@@ -47,3 +47,24 @@ def test_uplift_by_decile_structure():
         "mean_predicted_cate",
     ]
     assert np.sum(deciles_df["size"]) == N
+
+
+def test_metrics_input_validation():
+    with pytest.raises(ValueError, match="At least 2 samples required"):
+        compute_qini_curve(np.array([1]), np.array([1]), np.array([0.5]))
+
+    with pytest.raises(ValueError, match="Dimension mismatch"):
+        compute_qini_curve(np.array([1, 0]), np.array([1]), np.array([0.5, 0.2]))
+
+    with pytest.raises(ValueError, match="must not contain NaN"):
+        compute_qini_curve(np.array([1, np.nan]), np.array([1, 0]), np.array([0.5, 0.2]))
+
+    with pytest.raises(ValueError, match="must not contain Inf"):
+        compute_qini_curve(np.array([1, 0]), np.array([1, 0]), np.array([np.inf, 0.2]))
+
+    with pytest.raises(ValueError, match="must be binary"):
+        compute_qini_curve(np.array([1, 0]), np.array([2, 0]), np.array([0.5, 0.2]))
+
+    with pytest.raises(ValueError, match="Sample count .* must be >= n_deciles"):
+        compute_uplift_by_decile(np.array([1, 0]), np.array([1, 0]), np.array([0.5, 0.2]), n_deciles=10)
+
