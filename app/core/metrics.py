@@ -139,6 +139,25 @@ def compute_uplift_by_decile(
     if n_deciles < 1:
         raise ValueError(f"n_deciles must be >= 1, got {n_deciles}")
 
+    if not np.all(np.isfinite(y_arr)):
+        raise ValueError("Target outcome y_true must contain only finite numbers (no NaN or Inf)")
+    if not np.all(np.isfinite(t_arr)):
+        raise ValueError("Treatment indicators t_true must contain only finite numbers (no NaN or Inf)")
+    if not np.all(np.isfinite(c_arr)):
+        raise ValueError("Predicted CATE cate_pred must contain only finite numbers (no NaN or Inf)")
+
+    if not np.all(np.isin(np.unique(t_arr), [0, 1])):
+        raise ValueError("Treatment indicators t_true must be strictly binary (0 or 1)")
+    if not np.all(np.isin(np.unique(y_arr), [0, 1])):
+        raise ValueError("Target outcome y_true must be strictly binary (0 or 1)")
+
+    n_treated_total = int(np.sum(t_arr == 1))
+    n_control_total = int(np.sum(t_arr == 0))
+    if n_treated_total == 0 or n_control_total == 0:
+        raise ValueError(
+            f"Both treatment (t=1) and control (t=0) groups must be present. Found treated={n_treated_total}, control={n_control_total}"
+        )
+
     df = pd.DataFrame({
         "y": y_arr,
         "t": t_arr,
@@ -156,19 +175,23 @@ def compute_uplift_by_decile(
         n_t = len(t_group)
         n_c = len(c_group)
 
-        conv_t = t_group["y"].mean() if n_t > 0 else 0.0
-        conv_c = c_group["y"].mean() if n_c > 0 else 0.0
-        uplift = conv_t - conv_c
+        # Statistical rigor: If either treated or control group is absent in this bin,
+        # conversion rates and uplift cannot be estimated empirically; return NaN instead of fake 0.0.
+        has_sufficient_data = (n_t > 0) and (n_c > 0)
+        conv_t = float(t_group["y"].mean()) if n_t > 0 else float("nan")
+        conv_c = float(c_group["y"].mean()) if n_c > 0 else float("nan")
+        uplift = float(conv_t - conv_c) if has_sufficient_data else float("nan")
 
         stats.append({
             "decile": int(d),
             "size": len(group),
             "treated_count": n_t,
             "control_count": n_c,
-            "conv_rate_treated": round(float(conv_t), 4),
-            "conv_rate_control": round(float(conv_c), 4),
-            "incremental_uplift": round(float(uplift), 4),
+            "conv_rate_treated": round(conv_t, 4) if not np.isnan(conv_t) else float("nan"),
+            "conv_rate_control": round(conv_c, 4) if not np.isnan(conv_c) else float("nan"),
+            "incremental_uplift": round(uplift, 4) if not np.isnan(uplift) else float("nan"),
             "mean_predicted_cate": round(float(group["cate"].mean()), 4),
+            "reliable_comparison": has_sufficient_data,
         })
 
     return pd.DataFrame(stats)

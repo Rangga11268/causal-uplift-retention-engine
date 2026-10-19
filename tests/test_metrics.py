@@ -45,6 +45,7 @@ def test_uplift_by_decile_structure():
         "conv_rate_control",
         "incremental_uplift",
         "mean_predicted_cate",
+        "reliable_comparison",
     ]
     assert np.sum(deciles_df["size"]) == N
 
@@ -73,5 +74,31 @@ def test_metrics_input_validation():
 
     with pytest.raises(ValueError, match="Sample count .* must be >= n_deciles"):
         compute_uplift_by_decile(np.array([1, 0]), np.array([1, 0]), np.array([0.5, 0.2]), n_deciles=10)
+
+    # Uplift by decile specific validations
+    with pytest.raises(ValueError, match="Target outcome y_true must contain only finite numbers"):
+        compute_uplift_by_decile(np.array([1, np.nan, 0]), np.array([1, 0, 1]), np.array([0.5, 0.2, 0.1]), n_deciles=2)
+
+    with pytest.raises(ValueError, match="Treatment indicators t_true must be strictly binary"):
+        compute_uplift_by_decile(np.array([1, 0, 0]), np.array([1, 2, 0]), np.array([0.5, 0.2, 0.1]), n_deciles=2)
+
+    with pytest.raises(ValueError, match="Target outcome y_true must be strictly binary"):
+        compute_uplift_by_decile(np.array([1, 2, 0]), np.array([1, 0, 0]), np.array([0.5, 0.2, 0.1]), n_deciles=2)
+
+
+def test_uplift_by_decile_empty_group_handling():
+    # Synthetic scenario where one decile has 0 treated or 0 control
+    y = np.array([1, 0, 1, 0])
+    t = np.array([1, 1, 0, 0])  # Top bin will have both treated, bottom bin will have both control
+    cate = np.array([10.0, 9.0, 1.0, 0.5])
+    df = compute_uplift_by_decile(y, t, cate, n_deciles=2)
+    assert len(df) == 2
+    # In bin 1: treated_count = 2, control_count = 0 -> unreliable, incremental_uplift is NaN
+    assert df.loc[df["decile"] == 1, "treated_count"].values[0] == 2
+    assert df.loc[df["decile"] == 1, "control_count"].values[0] == 0
+    assert np.isnan(df.loc[df["decile"] == 1, "conv_rate_control"].values[0])
+    assert np.isnan(df.loc[df["decile"] == 1, "incremental_uplift"].values[0])
+    assert df.loc[df["decile"] == 1, "reliable_comparison"].values[0] == False
+
 
 
