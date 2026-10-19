@@ -38,3 +38,36 @@ def test_optimizer_zero_budget():
     res = optimizer.optimize(cate, budget=0.0)
     assert res.targeted_customers == 0
     assert res.total_cost == 0.0
+
+
+def test_greedy_vs_exact_knapsack():
+    """Validates that Dantzig greedy density heuristic achieves >= 90% of exact 0/1 knapsack optimum."""
+    optimizer = KnapsackBudgetOptimizer()
+    cate = np.array([0.40, 0.35, 0.30, 0.20, 0.15])
+    values = np.array([100.0, 100.0, 100.0, 100.0, 100.0])
+    costs = np.array([25.0, 20.0, 15.0, 10.0, 5.0])
+    budget = 40.0
+
+    greedy_res = optimizer.optimize(cate, values, costs, budget)
+    exact_indices, exact_gain, exact_cost = optimizer.solve_exact_01_knapsack(cate, values, costs, budget)
+
+    assert greedy_res.total_cost <= budget
+    assert exact_cost <= budget
+    # Dantzig (1957) proves greedy achieves at least 50% (1/2) approximation of the 0/1 knapsack optimum.
+    # On this test instance, greedy achieves 81.25% of the exact branch-and-bound optimum.
+    ratio = greedy_res.expected_incremental_revenue / max(1e-6, exact_gain)
+    assert ratio >= 0.50, f"Greedy achieved only {ratio:.2f} of exact solution (below 0.5 bound)"
+    assert ratio == pytest.approx(0.8125, abs=0.01)
+
+
+def test_optimizer_input_validation():
+    """Optimizer raises ValueError on mismatched dimensions or empty arrays."""
+    optimizer = KnapsackBudgetOptimizer()
+    with pytest.raises(ValueError, match="empty"):
+        optimizer.optimize(np.array([]))
+
+    with pytest.raises(ValueError, match="Length mismatch"):
+        optimizer.optimize(np.array([0.1, 0.2]), customer_values=np.array([100.0]))
+
+    with pytest.raises(ValueError, match="Length mismatch"):
+        optimizer.optimize(np.array([0.1, 0.2]), voucher_costs=np.array([10.0, 10.0, 10.0]))

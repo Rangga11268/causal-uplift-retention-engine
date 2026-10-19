@@ -29,8 +29,12 @@ class AllocationResult:
     selected_indices: np.ndarray
 
 
-class KnapsackBudgetOptimizer:
-    """Solves budget-constrained causal decision targeting."""
+class GreedyKnapsackOptimizer:
+    """Greedy budget allocation heuristic for causal decision targeting.
+
+    Uses Dantzig (1957) density ordering: ratio = (tau(x_i) * Value_i) / Cost_i.
+    Guarantees 1/2-approximation for 0/1 knapsack problems and scales linearly O(N log N).
+    """
 
     def __init__(self, config: BudgetConfig = DEFAULT_BUDGET):
         self.config = config
@@ -42,7 +46,7 @@ class KnapsackBudgetOptimizer:
         voucher_costs: Optional[Union[float, np.ndarray]] = None,
         budget: Optional[float] = None,
     ) -> AllocationResult:
-        """Find optimal targeting subset using causal efficiency density sorting.
+        """Find targeting subset using causal efficiency density sorting (Greedy Knapsack).
 
         Parameters
         ----------
@@ -62,14 +66,19 @@ class KnapsackBudgetOptimizer:
         """
         tau = np.asarray(cate_estimates, dtype=np.float64)
         N = len(tau)
+        if N == 0:
+            raise ValueError("cate_estimates cannot be empty.")
 
-        # 1. Resolve values and costs
+        # 1. Resolve and validate values and costs
         if customer_values is None:
             values = np.full(N, self.config.default_clv, dtype=np.float64)
         elif isinstance(customer_values, (int, float)):
             values = np.full(N, float(customer_values), dtype=np.float64)
         else:
             values = np.asarray(customer_values, dtype=np.float64)
+
+        if len(values) != N:
+            raise ValueError(f"Length mismatch: cate_estimates ({N}) vs customer_values ({len(values)})")
 
         if voucher_costs is None:
             costs = np.full(N, self.config.default_voucher_cost, dtype=np.float64)
@@ -78,12 +87,30 @@ class KnapsackBudgetOptimizer:
         else:
             costs = np.asarray(voucher_costs, dtype=np.float64)
 
-        B = float(budget if budget is not None else self.config.default_daily_budget)
+        if len(costs) != N:
+            raise ValueError(f"Length mismatch: cate_estimates ({N}) vs voucher_costs ({len(costs)})")
+
+        raw_b = budget if budget is not None else self.config.default_daily_budget
+        B = float(raw_b)
+        if B <= 0:
+            # Zero or negative budget: cannot target anyone
+            return AllocationResult(
+                total_customers=N,
+                targeted_customers=0,
+                targeting_rate_pct=0.0,
+                total_cost=0.0,
+                budget_limit=max(0.0, B),
+                budget_utilized_pct=0.0,
+                expected_incremental_conversions=0.0,
+                expected_incremental_revenue=0.0,
+                net_roi_ratio=0.0,
+                selected_indices=np.array([], dtype=int),
+            )
 
         # 2. Strict Causal Pruning:
         # Never target Sleeping Dogs (tau <= 0) or customers below min_cate_threshold
         # Because tau(x) <= 0 means negative or zero incremental gain!
-        is_candidate = (tau >= self.config.min_cate_threshold) & (costs > 0)
+        is_candidate = (tau >= self.config.min_cate_threshold) & (costs > 0) & (values > 0)
         candidate_indices = np.where(is_candidate)[0]
 
         if len(candidate_indices) == 0:
@@ -148,3 +175,47 @@ class KnapsackBudgetOptimizer:
             net_roi_ratio=round(net_roi, 4),
             selected_indices=selected_indices,
         )
+
+    def solve_exact_01_knapsack(
+        self,
+        cate_estimates: np.ndarray,
+        customer_values: np.ndarray,
+        voucher_costs: np.ndarray,
+        budget: float,
+    ) -> Tuple[List[int], float, float]:
+        """Exact 0/1 Knapsack Branch & Bound for small instances (N <= 30).
+
+        Used as an empirical benchmark to compare greedy heuristic optimality.
+        """
+        N = len(cate_estimates)
+        gains = [float(cate_estimates[i] * customer_values[i]) for i in range(N)]
+        c_list = [float(voucher_costs[i]) for i in range(N)]
+        B_val = float(budget)
+
+        best_gain = 0.0
+        best_selected: List[int] = []
+
+        def branch(idx: int, cur_cost: float, cur_gain: float, chosen: List[int]):
+            nonlocal best_gain, best_selected
+            if cur_cost > B_val:
+                return
+            if cur_gain > best_gain:
+                best_gain = cur_gain
+                best_selected = list(chosen)
+
+            if idx >= N:
+                return
+
+            # Branch 1: include item if beneficial
+            if gains[idx] > 0 and cur_cost + c_list[idx] <= B_val:
+                branch(idx + 1, cur_cost + c_list[idx], cur_gain + gains[idx], chosen + [idx])
+            # Branch 2: exclude item
+            branch(idx + 1, cur_cost, cur_gain, chosen)
+
+        branch(0, 0.0, 0.0, [])
+        total_cost = sum(c_list[i] for i in best_selected)
+        return best_selected, best_gain, total_cost
+
+
+# Backward-compatibility alias
+KnapsackBudgetOptimizer = GreedyKnapsackOptimizer

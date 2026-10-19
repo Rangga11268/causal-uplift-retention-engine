@@ -59,8 +59,9 @@ def compute_qini_curve(
     cum_y_c = np.cumsum(y_sorted * (1 - t_sorted))
 
     # Evaluate at regular fractional intervals
-    indices = np.linspace(1, N - 1, n_bins, dtype=int)
-    fractions = indices / N
+    # Since idx is 0-indexed, the cumulative count evaluated at idx is (idx + 1)
+    indices = np.unique(np.linspace(0, N - 1, min(n_bins, N), dtype=int))
+    fractions = (indices + 1).astype(np.float64) / float(N)
 
     qini_vals = []
     for idx in indices:
@@ -70,15 +71,15 @@ def compute_qini_curve(
         y0 = cum_y_c[idx]
 
         if n0 == 0:
-            gain = y1
+            gain = float(y1)
         else:
-            # Traditional Qini formula
-            gain = y1 - (n1 / n0) * y0
+            # Traditional Radcliffe (2007) Qini formula
+            gain = float(y1 - (n1 / n0) * y0)
         qini_vals.append(gain)
 
-    # Prepend origin (0, 0)
+    # Prepend origin (0.0, 0.0)
     fractions = np.concatenate([[0.0], fractions])
-    qini_values = np.concatenate([[0.0], qini_vals])
+    qini_values = np.concatenate([[0.0], np.array(qini_vals, dtype=np.float64)])
 
     # Compute AUUC via trapezoidal numerical integration
     trapz_fn = getattr(np, "trapezoid", getattr(np, "trapz", None))
