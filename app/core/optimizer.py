@@ -99,14 +99,16 @@ class GreedyKnapsackOptimizer:
         B = float(raw_b)
         if np.isnan(B) or np.isinf(B):
             raise ValueError(f"Budget must be a finite number, got {raw_b}")
-        if B <= 0:
-            # Zero or negative budget: cannot target anyone
+        if B < 0:
+            raise ValueError(f"Budget must be non-negative, got {raw_b}")
+        if B == 0:
+            # Zero budget: cannot target anyone
             return AllocationResult(
                 total_customers=N,
                 targeted_customers=0,
                 targeting_rate_pct=0.0,
                 total_cost=0.0,
-                budget_limit=max(0.0, B),
+                budget_limit=0.0,
                 budget_utilized_pct=0.0,
                 expected_incremental_conversions=0.0,
                 expected_incremental_revenue=0.0,

@@ -17,6 +17,8 @@ def generate_customer_retention_data(
     n_samples: int = 10000,
     random_state: int = 42,
     treatment_ratio: float = 0.35,  # Observational bias: 35% targeted
+    confounding_strength: float = 1.0,  # 0.0 = RCT (unconfounded), 1.0 = standard observational
+    near_zero_cate: bool = False,       # True = simulate global null hypothesis tau_i ~ 0
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Generate synthetic customer retention logs with known counterfactuals.
 
@@ -28,6 +30,10 @@ def generate_customer_retention_data(
         Seed for reproducibility.
     treatment_ratio : float
         Mean propensity of receiving promo treatment.
+    confounding_strength : float, default=1.0
+        Multiplier on observational selection bias (0.0 = randomized trial / RCT, 1.0 = observational).
+    near_zero_cate : bool, default=False
+        If True, simulates the null hypothesis where treatment has no heterogeneous effect (tau ~ 0).
 
     Returns
     -------
@@ -78,13 +84,13 @@ def generate_customer_retention_data(
 
     # 2. Confounding / Observational Selection Bias (Propensity)
     # Marketing teams naturally target engaged users with higher discount sensitivity
-    logits_p = (
-        -1.2
-        + 0.8 * discount_sensitivity
+    logits_bias = (
+        0.8 * discount_sensitivity
         + 0.5 * app_engagement
         - 0.02 * recency_days
         + 0.015 * hist_orders
     )
+    logits_p = -1.2 + float(confounding_strength) * logits_bias
     propensity_true = 1.0 / (1.0 + np.exp(-logits_p))
     propensity_true = np.clip(propensity_true, 0.05, 0.95)
 
@@ -106,12 +112,15 @@ def generate_customer_retention_data(
     # Treatment effect tau(x):
     # - High discount sensitivity + moderate engagement -> Large positive uplift (Persuadables)
     # - Low discount sensitivity + high tenure -> Negative effect from marketing spam (Sleeping Dogs)
-    tau_raw = (
-        0.35 * discount_sensitivity
-        + 0.15 * (1.0 - np.clip(recency_days / 45.0, 0.0, 1.0))
-        - 0.18 * (1.0 - discount_sensitivity) * (tenure_months / 40.0)
-    )
-    tau_true = np.clip(tau_raw, -0.30, 0.60)
+    if near_zero_cate:
+        tau_true = rng.normal(loc=0.0, scale=0.005, size=n_samples)
+    else:
+        tau_raw = (
+            0.35 * discount_sensitivity
+            + 0.15 * (1.0 - np.clip(recency_days / 45.0, 0.0, 1.0))
+            - 0.18 * (1.0 - discount_sensitivity) * (tenure_months / 40.0)
+        )
+        tau_true = np.clip(tau_raw, -0.30, 0.60)
 
     # Probability of conversion with treatment Y(1) = clip(Y(0) + tau, 0, 1)
     p_y1 = np.clip(p_y0 + tau_true, 0.01, 0.99)

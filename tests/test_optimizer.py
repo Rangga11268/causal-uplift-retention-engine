@@ -138,4 +138,54 @@ def test_greedy_knapsack_stress_test_varying_budgets_and_negative_cate():
             assert ratio >= 0.50, f"Greedy approximation violated for budget {budget}: ratio = {ratio:.3f}"
 
 
+def test_optimizer_negative_budget_raises():
+    """Negative budget must raise ValueError."""
+    optimizer = KnapsackBudgetOptimizer()
+    with pytest.raises(ValueError, match="Budget must be non-negative"):
+        optimizer.optimize(np.array([0.1, 0.2]), budget=-50.0)
+
+
+def test_optimizer_budget_too_small_for_any_positive_item():
+    """When budget is smaller than the cheapest positive CATE candidate, return 0 targeted."""
+    optimizer = KnapsackBudgetOptimizer()
+    cate = np.array([0.4, 0.2, -0.1])
+    values = np.array([100.0, 100.0, 100.0])
+    costs = np.array([10.0, 15.0, 5.0])
+    budget = 4.0  # cheaper than 10.0 and 15.0 (and 5.0 is negative CATE)
+
+    res = optimizer.optimize(cate, values, costs, budget=budget)
+    assert res.targeted_customers == 0
+    assert res.total_cost == 0.0
+    assert len(res.selected_indices) == 0
+
+
+def test_exact_knapsack_small_scale_exhaustive():
+    """Exhaustively verify modified greedy against branch-and-bound exact solver on small scale N=8."""
+    optimizer = KnapsackBudgetOptimizer()
+    rng = np.random.RandomState(42)
+    N = 8
+    cate = rng.uniform(-0.15, 0.40, size=N)
+    values = rng.uniform(40.0, 120.0, size=N)
+    costs = rng.uniform(10.0, 25.0, size=N)
+
+    # 1. Very generous budget that can afford ALL positive candidates
+    pos_mask = (cate >= 0.001) & (costs > 0) & (values > 0)
+    full_budget = float(np.sum(costs[pos_mask])) + 10.0
+    greedy_full = optimizer.optimize(cate, values, costs, budget=full_budget)
+    exact_idx_full, exact_gain_full, exact_cost_full = optimizer.solve_exact_01_knapsack(
+        cate, values, costs, budget=full_budget
+    )
+    # When all positive items fit, greedy and exact must achieve 100% parity
+    assert greedy_full.expected_incremental_revenue == pytest.approx(exact_gain_full, abs=0.01)
+    assert set(greedy_full.selected_indices) == set(exact_idx_full)
+
+    # 2. Intermediate budgets: verify 1/2 approximation guarantee
+    for b in [15.0, 30.0, 45.0]:
+        greedy_res = optimizer.optimize(cate, values, costs, budget=b)
+        exact_idx, exact_gain, _ = optimizer.solve_exact_01_knapsack(cate, values, costs, budget=b)
+        if exact_gain > 0:
+            assert greedy_res.expected_incremental_revenue >= 0.5 * exact_gain
+
+
+
 
