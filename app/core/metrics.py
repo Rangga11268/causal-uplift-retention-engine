@@ -59,6 +59,16 @@ def compute_qini_curve(
         raise ValueError(f"n_bins must be >= 1, got {n_bins}")
     if not np.all(np.isin(np.unique(t), [0, 1])):
         raise ValueError("Treatment indicators t must be binary (0 or 1)")
+    if not np.all(np.isin(np.unique(y), [0, 1])):
+        raise ValueError("Target outcome y must be binary (0 or 1)")
+
+    n_treated = int(np.sum(t == 1))
+    n_control = int(np.sum(t == 0))
+    if n_treated == 0 or n_control == 0:
+        raise ValueError(
+            f"Both treatment (t=1) and control (t=0) groups must be present. Found treated={n_treated}, control={n_control}"
+        )
+
 
     # Sort descending by predicted CATE (best persuadables targeted first)
     order = np.argsort(-cate)

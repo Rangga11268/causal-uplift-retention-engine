@@ -62,9 +62,16 @@ def test_metrics_input_validation():
     with pytest.raises(ValueError, match="must not contain Inf"):
         compute_qini_curve(np.array([1, 0]), np.array([1, 0]), np.array([np.inf, 0.2]))
 
-    with pytest.raises(ValueError, match="must be binary"):
+    with pytest.raises(ValueError, match="Treatment indicators t must be binary"):
         compute_qini_curve(np.array([1, 0]), np.array([2, 0]), np.array([0.5, 0.2]))
+
+    with pytest.raises(ValueError, match="Target outcome y must be binary"):
+        compute_qini_curve(np.array([2, 0]), np.array([1, 0]), np.array([0.5, 0.2]))
+
+    with pytest.raises(ValueError, match="Both treatment .* and control .* groups must be present"):
+        compute_qini_curve(np.array([1, 0]), np.array([1, 1]), np.array([0.5, 0.2]))
 
     with pytest.raises(ValueError, match="Sample count .* must be >= n_deciles"):
         compute_uplift_by_decile(np.array([1, 0]), np.array([1, 0]), np.array([0.5, 0.2]), n_deciles=10)
+
 

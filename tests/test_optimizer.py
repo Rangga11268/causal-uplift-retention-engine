@@ -84,3 +84,26 @@ def test_optimizer_input_validation():
     with pytest.raises(ValueError, match="limited to N <= 30"):
         optimizer.solve_exact_01_knapsack(np.ones(35), np.ones(35), np.ones(35), budget=50.0)
 
+
+def test_modified_greedy_beats_pure_density_counterexample():
+    """Validates that modified greedy (comparing greedy set with best single item) prevents
+    pure density failure where a tiny item blocks a massive single item."""
+    optimizer = KnapsackBudgetOptimizer()
+    # Item 0 has density 1.01 (gain 1.01 / cost 1.0)
+    # Item 1 has density 1.00 (gain 10.0 / cost 10.0)
+    # Budget is 10.0
+    cate = np.array([0.0101, 0.10])
+    values = np.array([100.0, 100.0])
+    costs = np.array([1.0, 10.0])
+    budget = 10.0
+
+    res = optimizer.optimize(cate, values, costs, budget)
+    exact_idx, exact_gain, _ = optimizer.solve_exact_01_knapsack(cate, values, costs, budget)
+
+    # Pure density would select [0] with gain 1.01 (only 10.1% of OPT).
+    # Modified greedy selects [1] with gain 10.0, matching the exact optimum.
+    assert set(res.selected_indices) == {1}
+    assert res.expected_incremental_revenue == pytest.approx(10.0)
+    assert exact_gain == pytest.approx(10.0)
+
+

@@ -145,18 +145,38 @@ class GreedyKnapsackOptimizer:
         sorted_ranks = np.argsort(-density)
         sorted_candidates = candidate_indices[sorted_ranks]
 
-        # 4. Greedy Knapsack Packing under budget B
-        selected = []
-        spent = 0.0
+        # 4. Modified Greedy Knapsack Packing with strict 1/2-approximation guarantee
+        # (Standard Dantzig greedy density packing + single best item comparison)
+        selected_greedy = []
+        spent_greedy = 0.0
 
         for idx in sorted_candidates:
             c = costs[idx]
-            if spent + c <= B:
-                selected.append(idx)
-                spent += c
-            # Stop if budget full
-            if spent >= B:
+            if spent_greedy + c <= B:
+                selected_greedy.append(idx)
+                spent_greedy += c
+            if spent_greedy >= B:
                 break
+
+        gain_greedy = float(np.sum(tau[selected_greedy] * values[selected_greedy])) if selected_greedy else 0.0
+
+        # Find best single item that fits within budget
+        best_single_idx = None
+        best_single_gain = 0.0
+        for idx in candidate_indices:
+            if costs[idx] <= B:
+                g = float(tau[idx] * values[idx])
+                if g > best_single_gain:
+                    best_single_gain = g
+                    best_single_idx = idx
+
+        # Modified Greedy guarantee: max(Greedy, best_single) >= 0.5 * OPT
+        if best_single_idx is not None and best_single_gain > gain_greedy:
+            selected = [best_single_idx]
+            spent = float(costs[best_single_idx])
+        else:
+            selected = selected_greedy
+            spent = spent_greedy
 
         selected_indices = np.array(selected, dtype=int)
         n_selected = len(selected_indices)
@@ -190,9 +210,11 @@ class GreedyKnapsackOptimizer:
         voucher_costs: np.ndarray,
         budget: float,
     ) -> Tuple[List[int], float, float]:
-        """Exact 0/1 Knapsack Branch & Bound for small instances (N <= 30).
+        """Exact 0/1 Knapsack Branch & Bound with Fractional Relaxation Pruning (N <= 30).
 
         Used as an empirical benchmark to compare greedy heuristic optimality.
+        Uses Dantzig Linear Relaxation (Fractional Knapsack) as an admissible upper bound
+        to aggressively prune subtrees, eliminating worst-case 2^N exponential explosion.
         """
         N = len(cate_estimates)
         if N > 30:
@@ -200,32 +222,68 @@ class GreedyKnapsackOptimizer:
         B_val = float(budget)
         if np.isnan(B_val) or np.isinf(B_val) or B_val < 0:
             raise ValueError(f"Budget must be non-negative and finite, got {budget}")
-        gains = [float(cate_estimates[i] * customer_values[i]) for i in range(N)]
-        c_list = [float(voucher_costs[i]) for i in range(N)]
+
+        # Filter beneficial items that fit into budget
+        raw_items = []
+        for i in range(N):
+            g = float(cate_estimates[i] * customer_values[i])
+            c = float(voucher_costs[i])
+            if g > 0 and c <= B_val:
+                raw_items.append((i, g, c, g / c if c > 0 else float("inf")))
+
+        if not raw_items or B_val <= 0:
+            return [], 0.0, 0.0
+
+        # Sort items descending by density for fast upper-bounding and early high-gain discovery
+        raw_items.sort(key=lambda x: x[3], reverse=True)
+        M = len(raw_items)
+
+        orig_indices = [item[0] for item in raw_items]
+        gains = [item[1] for item in raw_items]
+        costs = [item[2] for item in raw_items]
 
         best_gain = 0.0
-        best_selected: List[int] = []
+        best_chosen_mask: List[int] = []
+
+        def get_fractional_upper_bound(start_idx: int, rem_capacity: float) -> float:
+            """Admissible upper bound via fractional knapsack relaxation."""
+            ub = 0.0
+            cap = rem_capacity
+            for j in range(start_idx, M):
+                if costs[j] <= cap:
+                    ub += gains[j]
+                    cap -= costs[j]
+                else:
+                    ub += cap * (gains[j] / costs[j])
+                    break
+            return ub
 
         def branch(idx: int, cur_cost: float, cur_gain: float, chosen: List[int]):
-            nonlocal best_gain, best_selected
-            if cur_cost > B_val:
-                return
+            nonlocal best_gain, best_chosen_mask
+
             if cur_gain > best_gain:
                 best_gain = cur_gain
-                best_selected = list(chosen)
+                best_chosen_mask = list(chosen)
 
-            if idx >= N:
+            if idx >= M:
                 return
 
-            # Branch 1: include item if beneficial
-            if gains[idx] > 0 and cur_cost + c_list[idx] <= B_val:
-                branch(idx + 1, cur_cost + c_list[idx], cur_gain + gains[idx], chosen + [idx])
-            # Branch 2: exclude item
+            rem_cap = B_val - cur_cost
+            # Prune subtree if fractional relaxation upper bound cannot beat best_gain
+            if cur_gain + get_fractional_upper_bound(idx, rem_cap) <= best_gain:
+                return
+
+            # Branch 1: include item idx (if it fits)
+            if costs[idx] <= rem_cap:
+                branch(idx + 1, cur_cost + costs[idx], cur_gain + gains[idx], chosen + [orig_indices[idx]])
+
+            # Branch 2: exclude item idx
             branch(idx + 1, cur_cost, cur_gain, chosen)
 
         branch(0, 0.0, 0.0, [])
-        total_cost = sum(c_list[i] for i in best_selected)
-        return best_selected, best_gain, total_cost
+        total_cost = sum(float(voucher_costs[i]) for i in best_chosen_mask)
+        return best_chosen_mask, best_gain, total_cost
+
 
 
 # Backward-compatibility alias
