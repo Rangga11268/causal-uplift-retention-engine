@@ -39,7 +39,7 @@ def run_benchmark():
         print(f"      Batch Size: {batch_size:5d} | Median Latency: {median_lat:6.2f} ms ({per_record_us:6.2f} µs/customer)")
 
     # 2. Benchmark Knapsack Optimization
-    print("\n[3/3] Profiling Constrained Knapsack Optimization (10,000 candidates)...")
+    print("\n[3/4] Profiling Constrained Knapsack Optimization (10,000 candidates)...")
     optimizer = KnapsackBudgetOptimizer()
     cate_pool = np.random.uniform(-0.1, 0.4, 10000)
     costs_pool = np.random.uniform(5.0, 25.0, 10000)
@@ -53,6 +53,21 @@ def run_benchmark():
 
     median_opt = float(np.median(opt_latencies))
     print(f"      10,000 Customers Optimization : {median_opt:.2f} ms (< 50ms requirement: PASSED)")
+
+    # 3. Ground-truth Synthetic DGP Benchmarking (Random vs Model vs Oracle)
+    print("\n[4/4] Synthetic DGP Benchmark (True ITE Ground-Truth Comparison)...")
+    from app.core.metrics import compute_qini_curve
+    X_test, T_test, Y_test, tau_true, _ = generate_customer_retention_data(n_samples=2000, random_state=999)
+    tau_pred = xl.predict_cate(X_test)
+    random_ranking = np.random.RandomState(42).randn(len(tau_pred))
+
+    _, _, auuc_random_eval, qini_random = compute_qini_curve(Y_test, T_test, random_ranking)
+    _, _, auuc_model, qini_model = compute_qini_curve(Y_test, T_test, tau_pred)
+    _, _, auuc_oracle, qini_oracle = compute_qini_curve(Y_test, T_test, tau_true)
+
+    print(f"      Random Ranking AUUC : {auuc_random_eval:8.2f} (Excess Qini: {qini_random:6.2f})")
+    print(f"      X-Learner Model AUUC: {auuc_model:8.2f} (Excess Qini: {qini_model:6.2f})")
+    print(f"      True Oracle CATE    : {auuc_oracle:8.2f} (Excess Qini: {qini_oracle:6.2f})")
     print("=" * 76)
 
 

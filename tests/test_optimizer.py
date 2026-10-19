@@ -107,3 +107,35 @@ def test_modified_greedy_beats_pure_density_counterexample():
     assert exact_gain == pytest.approx(10.0)
 
 
+def test_greedy_knapsack_stress_test_varying_budgets_and_negative_cate():
+    """Stress-test greedy optimizer against exact branch-and-bound knapsack across multiple budgets & negative CATE."""
+    optimizer = KnapsackBudgetOptimizer()
+    rng = np.random.RandomState(123)
+    N = 15  # within exact solver limit (N <= 30)
+
+    # Mix of positive persuadables, neutral, and negative sleeping dogs
+    cate = np.array([0.45, -0.20, 0.30, 0.15, -0.05, 0.50, -0.15, 0.25, 0.05, -0.30, 0.35, 0.10, -0.10, 0.40, 0.20])
+    values = rng.uniform(50.0, 150.0, size=N)
+    costs = rng.uniform(5.0, 30.0, size=N)
+
+    # Test across multiple tight to loose budget scenarios
+    for budget in [15.0, 35.0, 60.0, 100.0, 150.0]:
+        greedy_res = optimizer.optimize(cate, values, costs, budget)
+        exact_indices, exact_gain, exact_cost = optimizer.solve_exact_01_knapsack(cate, values, costs, budget)
+
+        assert greedy_res.total_cost <= budget + 1e-6
+        assert exact_cost <= budget + 1e-6
+
+        # Negative CATE must never be selected by greedy or exact
+        for idx in greedy_res.selected_indices:
+            assert cate[idx] > 0, f"Greedy selected negative CATE at index {idx}"
+        for idx in exact_indices:
+            assert cate[idx] > 0, f"Exact solver selected negative CATE at index {idx}"
+
+        # If there exists a positive gain, verify modified greedy guarantees >= 50% approximation
+        if exact_gain > 0:
+            ratio = greedy_res.expected_incremental_revenue / exact_gain
+            assert ratio >= 0.50, f"Greedy approximation violated for budget {budget}: ratio = {ratio:.3f}"
+
+
+
