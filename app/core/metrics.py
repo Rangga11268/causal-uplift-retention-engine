@@ -111,9 +111,44 @@ def compute_qini_curve(
     # Random baseline connects (0, 0) to (1.0, Final Gain)
     final_gain = qini_values[-1]
     auuc_random = 0.5 * final_gain
-    qini_score = auuc - auuc_random
+    # Raw Qini score represents excess area over random baseline (Excess AUUC)
+    qini_score = float(auuc - auuc_random)
 
     return fractions, qini_values, auuc, qini_score
+
+
+def compute_normalized_qini_score(
+    y_true: np.ndarray,
+    t_true: np.ndarray,
+    cate_pred: np.ndarray,
+    n_bins: int = 100,
+) -> float:
+    """Compute Normalized Qini Score (Qini Index) relative to theoretical optimum.
+
+    Qini_norm = (AUUC_model - AUUC_random) / (AUUC_optimal - AUUC_random)
+    Bounded in [-1.0, 1.0] where 1.0 indicates perfect targeting order.
+    """
+    fractions, qini_model, auuc_model, qini_excess = compute_qini_curve(
+        y_true, t_true, cate_pred, n_bins=n_bins
+    )
+    # Theoretical optimal oracle ranking:
+    # 1. Persuadables (treated who convert, y=1, t=1): gain slope = +1
+    # 2. Neutral non-responders: gain slope = 0
+    # 3. Sleeping dogs (control who convert, y=1, t=0): gain slope = -(N1/N0)
+    y = np.asarray(y_true, dtype=np.float64)
+    t = np.asarray(t_true, dtype=np.int32)
+    # Perfect oracle priority score: +2 for treated converts, 0 for neutral, -2 for control converts
+    oracle_score = np.where(
+        (t == 1) & (y == 1), 2.0,
+        np.where((t == 0) & (y == 1), -2.0, 0.0)
+    )
+    _, _, auuc_optimal, qini_optimal_excess = compute_qini_curve(
+        y_true, t_true, oracle_score, n_bins=n_bins
+    )
+
+    if qini_optimal_excess <= 1e-9:
+        return 0.0
+    return float(np.clip(qini_excess / qini_optimal_excess, -1.0, 1.0))
 
 
 def compute_uplift_by_decile(

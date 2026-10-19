@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from app.core.metrics import compute_qini_curve, compute_uplift_by_decile
+from app.core.metrics import compute_qini_curve, compute_normalized_qini_score, compute_uplift_by_decile
 
 
 def test_qini_curve_properties():
@@ -24,6 +24,10 @@ def test_qini_curve_properties():
     # Qini score for superior ordering must be strictly positive
     assert qini_score > 0.0
     assert auuc > 0.0
+
+    # Normalized Qini score should be close to 1.0 for near-perfect alignment
+    norm_qini = compute_normalized_qini_score(y, t, cate, n_bins=50)
+    assert 0.0 < norm_qini <= 1.0
 
 
 def test_uplift_by_decile_structure():
