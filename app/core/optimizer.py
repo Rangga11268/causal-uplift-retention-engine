@@ -33,7 +33,16 @@ class GreedyKnapsackOptimizer:
     """Greedy budget allocation heuristic for causal decision targeting.
 
     Uses Dantzig (1957) density ordering: ratio = (tau(x_i) * Value_i) / Cost_i.
-    Guarantees 1/2-approximation for 0/1 knapsack problems and scales linearly O(N log N).
+    
+    Mathematical Guarantee:
+    Implements modified Dantzig packing: max(Gain(GreedySet), Gain(BestSingleItem)) >= 0.5 * OPT.
+    This guarantees a 1/2-approximation for 0/1 knapsack problems under non-negative item values
+    and positive costs, executing in deterministic O(N log N) sorting time.
+    
+    Scope & Production Usage:
+    - In production streaming pipelines with N up to millions of users, `optimize()` is used.
+    - `solve_exact_01_knapsack()` is an exact Branch-and-Bound algorithm strictly restricted
+      to small subsets (N <= 30) for offline benchmark auditing, NOT for large-scale runtime serving.
     """
 
     def __init__(self, config: BudgetConfig = DEFAULT_BUDGET):
