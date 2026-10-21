@@ -187,5 +187,54 @@ def test_exact_knapsack_small_scale_exhaustive():
             assert greedy_res.expected_incremental_revenue >= 0.5 * exact_gain
 
 
+def test_exact_knapsack_with_zero_costs():
+    """Verify solve_exact_01_knapsack handles items with zero costs gracefully."""
+    optimizer = KnapsackBudgetOptimizer()
+    cate = np.array([0.3, 0.2, 0.1])
+    values = np.array([100.0, 50.0, 40.0])
+    costs = np.array([0.0, 10.0, 5.0])  # item 0 has cost 0.0 (free)
+    budget = 10.0
+
+    exact_indices, exact_gain, exact_cost = optimizer.solve_exact_01_knapsack(
+        cate, values, costs, budget=budget
+    )
+    # Item 0 (gain 30) should always be selected because cost is 0
+    assert 0 in exact_indices
+    assert exact_gain >= 30.0
+    assert exact_cost <= budget
+
+
+def test_optimizer_and_exact_reject_non_finite_inputs():
+    """Verify both heuristic and exact solvers reject NaN and Inf."""
+    optimizer = KnapsackBudgetOptimizer()
+    valid_cate = np.array([0.2, 0.1])
+    valid_vals = np.array([100.0, 100.0])
+    valid_costs = np.array([10.0, 10.0])
+
+    for bad_val in [np.nan, np.inf, -np.inf]:
+        with pytest.raises(ValueError, match="must not contain (NaN|Inf)"):
+            optimizer.optimize(np.array([bad_val, 0.1]), valid_vals, valid_costs, budget=20.0)
+
+        with pytest.raises(ValueError, match="must not contain (NaN|Inf)"):
+            optimizer.solve_exact_01_knapsack(np.array([bad_val, 0.1]), valid_vals, valid_costs, budget=20.0)
+
+        with pytest.raises(ValueError, match="Budget must be non-negative and finite|Budget must be a finite number"):
+            optimizer.optimize(valid_cate, valid_vals, valid_costs, budget=bad_val)
+
+        with pytest.raises(ValueError, match="Budget must be non-negative and finite"):
+            optimizer.solve_exact_01_knapsack(valid_cate, valid_vals, valid_costs, budget=bad_val)
+
+
+def test_optimizer_and_exact_reject_negative_costs():
+    """Verify negative voucher costs are rejected."""
+    optimizer = KnapsackBudgetOptimizer()
+    with pytest.raises(ValueError, match="voucher_costs cannot contain negative values"):
+        optimizer.optimize(np.array([0.2, 0.1]), np.array([100.0, 100.0]), np.array([-5.0, 10.0]), budget=20.0)
+
+    with pytest.raises(ValueError, match="voucher_costs cannot contain negative values"):
+        optimizer.solve_exact_01_knapsack(np.array([0.2, 0.1]), np.array([100.0, 100.0]), np.array([-5.0, 10.0]), budget=20.0)
+
+
+
 
 

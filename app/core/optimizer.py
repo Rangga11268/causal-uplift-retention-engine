@@ -103,6 +103,10 @@ class GreedyKnapsackOptimizer:
             raise ValueError("Inputs to optimize must not contain NaN")
         if np.isinf(tau).any() or np.isinf(values).any() or np.isinf(costs).any():
             raise ValueError("Inputs to optimize must not contain Inf")
+        if (costs < 0).any():
+            raise ValueError("voucher_costs cannot contain negative values")
+        if (values < 0).any():
+            raise ValueError("customer_values cannot contain negative values")
 
         raw_b = budget if budget is not None else self.config.default_daily_budget
         B = float(raw_b)
@@ -234,16 +238,37 @@ class GreedyKnapsackOptimizer:
         if np.isnan(B_val) or np.isinf(B_val) or B_val < 0:
             raise ValueError(f"Budget must be non-negative and finite, got {budget}")
 
-        # Filter beneficial items that fit into budget
+        cate_arr = np.asarray(cate_estimates, dtype=np.float64)
+        val_arr = np.asarray(customer_values, dtype=np.float64)
+        cost_arr = np.asarray(voucher_costs, dtype=np.float64)
+
+        if len(val_arr) != N or len(cost_arr) != N:
+            raise ValueError(f"Length mismatch: cate_estimates ({N}), values ({len(val_arr)}), costs ({len(cost_arr)})")
+        if np.isnan(cate_arr).any() or np.isnan(val_arr).any() or np.isnan(cost_arr).any():
+            raise ValueError("Inputs to solve_exact_01_knapsack must not contain NaN")
+        if np.isinf(cate_arr).any() or np.isinf(val_arr).any() or np.isinf(cost_arr).any():
+            raise ValueError("Inputs to solve_exact_01_knapsack must not contain Inf")
+        if (cost_arr < 0).any():
+            raise ValueError("voucher_costs cannot contain negative values")
+        if (val_arr < 0).any():
+            raise ValueError("customer_values cannot contain negative values")
+
+        # Zero-cost beneficial items can be taken unconditionally (free lunch)
+        free_indices: List[int] = []
+        free_gain: float = 0.0
         raw_items = []
         for i in range(N):
-            g = float(cate_estimates[i] * customer_values[i])
-            c = float(voucher_costs[i])
-            if g > 0 and c <= B_val:
-                raw_items.append((i, g, c, g / c if c > 0 else float("inf")))
+            g = float(cate_arr[i] * val_arr[i])
+            c = float(cost_arr[i])
+            if g > 0:
+                if c == 0.0:
+                    free_indices.append(i)
+                    free_gain += g
+                elif c <= B_val:
+                    raw_items.append((i, g, c, g / c))
 
-        if not raw_items or B_val <= 0:
-            return [], 0.0, 0.0
+        if not raw_items:
+            return free_indices, free_gain, 0.0
 
         # Sort items descending by density for fast upper-bounding and early high-gain discovery
         raw_items.sort(key=lambda x: x[3], reverse=True)
@@ -253,8 +278,8 @@ class GreedyKnapsackOptimizer:
         gains = [item[1] for item in raw_items]
         costs = [item[2] for item in raw_items]
 
-        best_gain = 0.0
-        best_chosen_mask: List[int] = []
+        best_gain = free_gain
+        best_chosen_mask: List[int] = list(free_indices)
 
         def get_fractional_upper_bound(start_idx: int, rem_capacity: float) -> float:
             """Admissible upper bound via fractional knapsack relaxation."""
@@ -291,7 +316,7 @@ class GreedyKnapsackOptimizer:
             # Branch 2: exclude item idx
             branch(idx + 1, cur_cost, cur_gain, chosen)
 
-        branch(0, 0.0, 0.0, [])
+        branch(0, 0.0, free_gain, list(free_indices))
         total_cost = sum(float(voucher_costs[i]) for i in best_chosen_mask)
         return best_chosen_mask, best_gain, total_cost
 
