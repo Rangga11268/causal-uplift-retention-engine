@@ -118,7 +118,7 @@ Evaluated on Python 3.12 (CPU, 10,000 customer observational retention populatio
 | **Net ROI vs Naïve Churn** | $\ge +25.0\%$ Relative Gain | **+240.9% Net ROI** (vs +3.4% Naïve) | Simulated Knapsack allocation under $4,000 budget |
 | **10k Users Knapsack Speed** | $< 50.0\text{ ms}$ | **17.82 ms** | `benchmarks/benchmark_uplift.py` |
 | **Scoring Latency** | $< 50.0\text{ \mu s}$ / customer | **8.40 \mu s / customer** (41.98 ms / 5k) | Batch inference benchmark |
-| **Automated Test Suite** | 100% Pass Rate | **25 / 25 Passed (100%)** | `pytest tests/` |
+| **Automated Test Suite** | 100% Pass Rate | **28 / 28 Passed (100%)** | `pytest tests/` |
 
 ### 🔬 Multi-Seed Synthetic DGP Benchmark ($S = 10$ Seeds)
 
@@ -138,6 +138,7 @@ Evaluated via `benchmarks/benchmark_uplift.py` with strict data separation (70% 
 > 2. **Sample Efficiency:** At low sample sizes ($N=500$), X-Learner degrades gracefully ($r = +0.307$) compared to T-Learner ($r = +0.214$) and DR-Learner ($r = +0.184$).
 > 3. **Null Hypothesis Control:** Under the global null ($\tau_i \approx 0$), all meta-learners exhibit near-zero correlation ($r \approx 0.01$) and zero excess Qini, confirming that the engine does not falsely invent uplift in non-responsive populations.
 > 4. **Strict Experimental Separation:** The Oracle ground truth $\tau^*$ is never revealed to or used by any meta-learner during training or hyperparameter tuning; it is evaluated exclusively on the held-out evaluation set as a theoretical ceiling.
+> 5. **Zero-Cost Alignment & Knapsack 1/2-Approximation Scope:** Zero-cost candidates with positive uplift ($\tau_i \ge \tau_{\min}$) are unconditionally allocated first in both greedy and exact solvers without consuming budget. The modified Dantzig 1/2-approximation guarantee ($\max(\text{Greedy}, \text{SingleBestItem}) \ge 0.5 \times \text{OPT}$) guarantees combinatorial optimization bounds with respect to input $\hat{\tau}$; it is distinct from statistical estimation error which depends on causal identification assumptions (Unconfoundedness, Overlap, SUTVA).
 
 > [!NOTE]
 > **Experimental Context & Simulation Assumptions:**

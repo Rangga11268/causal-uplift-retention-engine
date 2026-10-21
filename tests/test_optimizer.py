@@ -235,6 +235,56 @@ def test_optimizer_and_exact_reject_negative_costs():
         optimizer.solve_exact_01_knapsack(np.array([0.2, 0.1]), np.array([100.0, 100.0]), np.array([-5.0, 10.0]), budget=20.0)
 
 
+def test_greedy_and_exact_zero_cost_consistency():
+    """Verify greedy and exact solvers achieve 100% agreement when zero-cost items are present."""
+    optimizer = KnapsackBudgetOptimizer()
+    cate = np.array([0.35, 0.25, 0.15, 0.10])
+    values = np.array([100.0, 80.0, 50.0, 40.0])
+    costs = np.array([0.0, 15.0, 10.0, 5.0])  # item 0 has cost 0.0 (free)
+    budget = 15.0
+
+    greedy_res = optimizer.optimize(cate, values, costs, budget=budget)
+    exact_idx, exact_gain, exact_cost = optimizer.solve_exact_01_knapsack(cate, values, costs, budget=budget)
+
+    # Item 0 MUST be in both solutions
+    assert 0 in greedy_res.selected_indices
+    assert 0 in exact_idx
+
+    # Total revenue and cost must be identical or >= 0.5 ratio
+    assert set(greedy_res.selected_indices) == set(exact_idx)
+    assert greedy_res.expected_incremental_revenue == pytest.approx(exact_gain)
+    assert greedy_res.total_cost == pytest.approx(exact_cost)
+
+
+def test_optimizer_rejects_multidimensional_arrays():
+    """Verify 2D arrays are cleanly rejected by both solvers."""
+    optimizer = KnapsackBudgetOptimizer()
+    cate_2d = np.array([[0.2, 0.1], [0.3, 0.4]])
+    vals_1d = np.array([100.0, 100.0])
+    costs_1d = np.array([10.0, 10.0])
+
+    with pytest.raises(ValueError, match="must be a 1D array"):
+        optimizer.optimize(cate_2d, vals_1d, costs_1d, budget=20.0)
+
+    with pytest.raises(ValueError, match="must be 1-dimensional"):
+        optimizer.solve_exact_01_knapsack(cate_2d, vals_1d, costs_1d, budget=20.0)
+
+
+def test_optimizer_budget_boundary_exact_match():
+    """When budget exactly equals an item cost, that item is chosen without overflow."""
+    optimizer = KnapsackBudgetOptimizer()
+    cate = np.array([0.4, 0.1])
+    values = np.array([100.0, 50.0])
+    costs = np.array([25.0, 10.0])
+    budget = 25.0
+
+    res = optimizer.optimize(cate, values, costs, budget=budget)
+    assert res.total_cost == 25.0
+    assert 0 in res.selected_indices
+    assert res.budget_utilized_pct == 100.0
+
+
+
 
 
 

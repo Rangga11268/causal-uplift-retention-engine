@@ -74,6 +74,8 @@ class GreedyKnapsackOptimizer:
             Complete allocation metrics and selected target mask.
         """
         tau = np.asarray(cate_estimates, dtype=np.float64)
+        if tau.ndim != 1:
+            raise ValueError(f"cate_estimates must be a 1D array, got shape {tau.shape}")
         N = len(tau)
         if N == 0:
             raise ValueError("cate_estimates cannot be empty.")
@@ -86,6 +88,8 @@ class GreedyKnapsackOptimizer:
         else:
             values = np.asarray(customer_values, dtype=np.float64)
 
+        if values.ndim != 1:
+            raise ValueError(f"customer_values must be a 1D array, got shape {values.shape}")
         if len(values) != N:
             raise ValueError(f"Length mismatch: cate_estimates ({N}) vs customer_values ({len(values)})")
 
@@ -96,6 +100,8 @@ class GreedyKnapsackOptimizer:
         else:
             costs = np.asarray(voucher_costs, dtype=np.float64)
 
+        if costs.ndim != 1:
+            raise ValueError(f"voucher_costs must be a 1D array, got shape {costs.shape}")
         if len(costs) != N:
             raise ValueError(f"Length mismatch: cate_estimates ({N}) vs voucher_costs ({len(costs)})")
 
@@ -129,13 +135,19 @@ class GreedyKnapsackOptimizer:
                 selected_indices=np.array([], dtype=int),
             )
 
-        # 2. Strict Causal Pruning:
+        # 2. Strict Causal Pruning & Zero-Cost Item Partitioning:
         # Never target Sleeping Dogs (tau <= 0) or customers below min_cate_threshold
-        # Because tau(x) <= 0 means negative or zero incremental gain!
-        is_candidate = (tau >= self.config.min_cate_threshold) & (costs > 0) & (values > 0)
-        candidate_indices = np.where(is_candidate)[0]
+        # Zero-cost beneficial items are unconditionally allocated (free lunch)
+        beneficial_mask = (tau >= self.config.min_cate_threshold) & (values > 0)
+        free_mask = beneficial_mask & (costs == 0.0)
+        costed_mask = beneficial_mask & (costs > 0.0)
 
-        if len(candidate_indices) == 0:
+        free_indices = list(np.where(free_mask)[0])
+        free_gain = float(np.sum(tau[free_indices] * values[free_indices])) if free_indices else 0.0
+
+        costed_indices = np.where(costed_mask)[0]
+
+        if len(free_indices) == 0 and len(costed_indices) == 0:
             return AllocationResult(
                 total_customers=N,
                 targeted_customers=0,
@@ -149,45 +161,44 @@ class GreedyKnapsackOptimizer:
                 selected_indices=np.array([], dtype=int),
             )
 
-        # 3. Knapsack Density Sorting:
+        # 3. Knapsack Density Sorting on Costed Candidates:
         # Density ratio = Expected Incremental Gain / Cost
         # ROI Density = (tau(x_i) * Value_i) / Cost_i
-        expected_gain = tau[candidate_indices] * values[candidate_indices]
-        cost_subset = costs[candidate_indices]
-        density = expected_gain / cost_subset
-
-        # Sort candidate indices descending by density
-        sorted_ranks = np.argsort(-density)
-        sorted_candidates = candidate_indices[sorted_ranks]
-
-        # 4. Modified Greedy Knapsack Packing with strict 1/2-approximation guarantee
-        # (Standard Dantzig greedy density packing + single best item comparison)
-        selected_greedy = []
+        selected_greedy = list(free_indices)
         spent_greedy = 0.0
 
-        for idx in sorted_candidates:
-            c = costs[idx]
-            if spent_greedy + c <= B:
-                selected_greedy.append(idx)
-                spent_greedy += c
-            if spent_greedy >= B:
-                break
+        if len(costed_indices) > 0:
+            expected_gain = tau[costed_indices] * values[costed_indices]
+            cost_subset = costs[costed_indices]
+            density = expected_gain / cost_subset
+
+            # Sort costed candidate indices descending by density
+            sorted_ranks = np.argsort(-density)
+            sorted_costed = costed_indices[sorted_ranks]
+
+            for idx in sorted_costed:
+                c = costs[idx]
+                if spent_greedy + c <= B:
+                    selected_greedy.append(idx)
+                    spent_greedy += c
+                if spent_greedy >= B:
+                    break
 
         gain_greedy = float(np.sum(tau[selected_greedy] * values[selected_greedy])) if selected_greedy else 0.0
 
-        # Find best single item that fits within budget
+        # Find best single costed item that fits within budget
         best_single_idx = None
         best_single_gain = 0.0
-        for idx in candidate_indices:
+        for idx in costed_indices:
             if costs[idx] <= B:
                 g = float(tau[idx] * values[idx])
                 if g > best_single_gain:
                     best_single_gain = g
                     best_single_idx = idx
 
-        # Modified Greedy guarantee: max(Greedy, best_single) >= 0.5 * OPT
-        if best_single_idx is not None and best_single_gain > gain_greedy:
-            selected = [best_single_idx]
+        # Modified Greedy guarantee: max(Greedy, free + best_single) >= 0.5 * OPT
+        if best_single_idx is not None and (free_gain + best_single_gain) > gain_greedy:
+            selected = list(free_indices) + [best_single_idx]
             spent = float(costs[best_single_idx])
         else:
             selected = selected_greedy
@@ -242,6 +253,8 @@ class GreedyKnapsackOptimizer:
         val_arr = np.asarray(customer_values, dtype=np.float64)
         cost_arr = np.asarray(voucher_costs, dtype=np.float64)
 
+        if cate_arr.ndim != 1 or val_arr.ndim != 1 or cost_arr.ndim != 1:
+            raise ValueError("All input arrays to solve_exact_01_knapsack must be 1-dimensional")
         if len(val_arr) != N or len(cost_arr) != N:
             raise ValueError(f"Length mismatch: cate_estimates ({N}), values ({len(val_arr)}), costs ({len(cost_arr)})")
         if np.isnan(cate_arr).any() or np.isnan(val_arr).any() or np.isnan(cost_arr).any():
