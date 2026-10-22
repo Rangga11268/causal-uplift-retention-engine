@@ -284,6 +284,78 @@ def test_optimizer_budget_boundary_exact_match():
     assert res.budget_utilized_pct == 100.0
 
 
+def test_randomized_multi_seed_greedy_vs_exact_approximation_ratio():
+    """Property-based multi-seed validation proving Dantzig 1/2 approximation holds across random distributions."""
+    optimizer = KnapsackBudgetOptimizer()
+    ratios = []
+
+    for seed in range(20):
+        rng = np.random.default_rng(seed=100 + seed)
+        n_items = rng.integers(8, 15)
+
+        # Generate heterogeneous random instances with potential zero-cost candidates
+        cate = rng.uniform(0.05, 0.60, size=n_items)
+        values = rng.uniform(20.0, 200.0, size=n_items)
+        costs = rng.uniform(5.0, 50.0, size=n_items)
+
+        # Randomly designate 1-2 free items
+        free_idx = rng.choice(n_items, size=rng.integers(0, 2), replace=False)
+        costs[free_idx] = 0.0
+
+        budget = float(rng.uniform(30.0, 120.0))
+
+        greedy_res = optimizer.optimize(cate, values, costs, budget=budget)
+        exact_idx, exact_gain, exact_cost = optimizer.solve_exact_01_knapsack(cate, values, costs, budget=budget)
+
+        # Invariant 1: Budget constraints are strictly respected
+        assert greedy_res.total_cost <= budget + 1e-6
+        assert exact_cost <= budget + 1e-6
+
+        # Invariant 2: Free lunch candidates with positive gain are selected by both
+        for fi in free_idx:
+            if cate[fi] > 0.0:
+                assert fi in greedy_res.selected_indices
+                assert fi in exact_idx
+
+        # Invariant 3: Dantzig (1957) 1/2 approximation guarantee
+        if exact_gain > 1e-6:
+            ratio = greedy_res.expected_incremental_revenue / exact_gain
+            ratios.append(ratio)
+            assert ratio >= 0.50 - 1e-6, f"Seed {seed} breached Dantzig bound: ratio={ratio:.4f}"
+
+    # Empirical mean efficiency across all random distributions should exceed 80%
+    assert len(ratios) == 20
+    mean_efficiency = float(np.mean(ratios))
+    assert mean_efficiency >= 0.80, f"Mean greedy efficiency {mean_efficiency:.2%} was below 80% threshold"
+
+
+def test_causal_pipeline_boundary_separation():
+    """Validates structural separation between CATE estimation, Knapsack allocation, and DGP."""
+    from app.core.meta_learners import XLearner
+    from app.data.generator import generate_customer_retention_data
+
+    # 1. DGP produces observational customer features, treatment assignments, and conversion outcomes
+    X, T, Y, tau_true, _ = generate_customer_retention_data(n_samples=200, random_state=42)
+    assert len(X) == 200
+    assert len(T) == 200
+    assert len(Y) == 200
+
+    # 2. CATE estimator infers uplift without budget or cost awareness
+    learner = XLearner()
+    learner.fit(X, T, Y)
+    cate_pred = learner.predict_cate(X)
+    assert cate_pred.ndim == 1
+    assert len(cate_pred) == 200
+
+    # 3. Knapsack optimizer consumes CATE independently of model architecture
+    optimizer = KnapsackBudgetOptimizer()
+    budget = 100.0
+    res = optimizer.optimize(cate_pred, budget=budget)
+    assert res.total_cost <= budget
+    assert res.targeted_customers > 0
+
+
+
 
 
 

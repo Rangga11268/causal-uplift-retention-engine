@@ -118,7 +118,7 @@ Evaluated on Python 3.12 (CPU, 10,000 customer observational retention populatio
 | **Net ROI vs Naïve Churn** | $\ge +25.0\%$ Relative Gain | **+240.9% Net ROI** (vs +3.4% Naïve) | Simulated Knapsack allocation under $4,000 budget |
 | **10k Users Knapsack Speed** | $< 50.0\text{ ms}$ | **17.82 ms** | `benchmarks/benchmark_uplift.py` |
 | **Scoring Latency** | $< 50.0\text{ \mu s}$ / customer | **8.40 \mu s / customer** (41.98 ms / 5k) | Batch inference benchmark |
-| **Automated Test Suite** | 100% Pass Rate | **28 / 28 Passed (100%)** | `pytest tests/` |
+| **Automated Test Suite** | 100% Pass Rate | **30 / 30 Passed (100%)** | `pytest tests/` |
 
 ### 🔬 Multi-Seed Synthetic DGP Benchmark ($S = 10$ Seeds)
 
